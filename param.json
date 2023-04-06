@@ -1,0 +1,8 @@
+{
+ "EntryTime":"0,00,0",
+ "ExitTime":"3,00,0",
+ "StopLossPoint":40,
+ "Symbol":"BANKNIFTY",
+ "Qty":25,
+ "MaxRetry":4
+}
