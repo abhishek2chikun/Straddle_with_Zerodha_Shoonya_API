@@ -1,17 +1,18 @@
+import pandas as pd
+import time
+from time import sleep
+from pytz import timezone
+import yaml
+import json
+import datetime as dt
+import numpy as np
+import pyotp
 def Straddle():
  
-    import pandas as pd
-    import time
-    from time import sleep
-    from pytz import timezone
-    import yaml
-    import json
-    import datetime as dt
-    import numpy as np
-    import pyotp
+
     global master_contract, api, Log, TradeCount
     Log = {}
-
+    path ='./'
     from ShoonyaApipy import api_helper
 
     #API object 
@@ -57,10 +58,10 @@ def Straddle():
         return order_place['norenordno']
 
     def stop_loss_order(Qty, tradingsymbol, price, SL):
-        stop_price = round((1-SL/100)*float(price),1)
-        price = stop_price-2
+        stop_price = price+SL
+        price = stop_price+2
         trigger_price = stop_price
-        stop_loss_orderid = place_order(BS='S', tradingsymbol=tradingsymbol, quantity=Qty, price_type='SL-LMT',price=price, trigger_price=trigger_price)
+        stop_loss_orderid = place_order(BS='B', tradingsymbol=tradingsymbol, quantity=Qty, price_type='SL-LMT',price=price, trigger_price=trigger_price)
         return stop_loss_orderid
 
     def single_order_history(orderid,req) :
@@ -108,7 +109,7 @@ def Straddle():
 
         return Log
 
-    with open('./param.json','r') as f:
+    with open(f'{path}/INFO/Strategy.json','r') as f:
         Parameter = json.load(f)
     
     Entry = Parameter['EntryTime'].split(',')
@@ -123,29 +124,19 @@ def Straddle():
     while dt.datetime.now(timezone("Asia/Kolkata")).time() < dt.time(Entry[0],Entry[1],Entry[2]):
         sleep(1)
     
-    try:
-        with open(f'./INFO/Algostatus.json','r') as f:
-            Algostatus= json.load(f)
-    except:
-        time.sleep(1)
-        with open(f'./INFO/Algostatus.json','r') as f:
-            Algostatus= json.load(f)
 
-    if Algostatus['status'] =='Active':
 
-        #First Trade
-
-        Trade(Parameter,TradeCount)
+    Trade(Parameter,TradeCount)
         
     while TradeCount < Parameter['MaxRetry']+1:
 
         #Exit ALL Scrip
         try:
-            with open(f'./INFO/Algostatus.json','r') as f:
+            with open(f'{path}/INFO/Algostatus.json','r') as f:
                 Algostatus= json.load(f)
         except:
             time.sleep(1)
-            with open(f'./INFO/Algostatus.json','r') as f:
+            with open(f'{path}/INFO/Algostatus.json','r') as f:
                 Algostatus= json.load(f)
 
         print(Algostatus)
@@ -157,7 +148,7 @@ def Straddle():
             print("TradeCount----",TradeCount)
             ce_sl_status = single_order_history(Log[TradeCount]['ce_slorderid'], 'status')
             pe_sl_status = single_order_history(Log[TradeCount]['pe_slorderid'], 'status')
-            if pe_sl_status == 'REJECTED' and ce_sl_status =='REJECTED':
+            if pe_sl_status == 'COMPLETE' and ce_sl_status =='COMPLETE':
                 TradeCount+=1
                 Trade(Parameter,TradeCount)
 
@@ -202,11 +193,27 @@ def Straddle():
                     api.cancel_order(Log[TradeCount]['pe_slorderid'])
                     place_order('B', Log[TradeCount]['pe_tradingsymbol'], Parameter['Qty'])
                     break
+                break
             except Exception as e:
                 print("Algo is OFF today or encounter an error",e)
 
             
-
+     
 if __name__ == '__main__':
+    while True:
+        import glob
+        Latest = sorted(glob.glob('./Logs/*'))[-1]
+        Latest = Latest.split('.')[1].split('/')[-1]
+        Date = dt.datetime.strptime(Latest,'%Y-%m-%d').date()
+        if  Date ==dt.date.today():
+            try:
+                with open(f'./INFO/Algostatus.json','r') as f:
+                    Algostatus= json.load(f)
+            except:
+                time.sleep(1)
+                with open(f'./INFO/Algostatus.json','r') as f:
+                    Algostatus= json.load(f)
+            if Algostatus['status'] =='Active':
+                print("Algo Started")
 
-    Straddle()
+                Straddle()
